@@ -1,0 +1,42 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<mule xmlns:tracking="http://www.mulesoft.org/schema/mule/ee/tracking" xmlns:dw="http://www.mulesoft.org/schema/mule/ee/dw"
+	xmlns:metadata="http://www.mulesoft.org/schema/mule/metadata"
+	xmlns:http="http://www.mulesoft.org/schema/mule/http" xmlns:as400="http://www.mulesoft.org/schema/mule/as400"
+	xmlns="http://www.mulesoft.org/schema/mule/core" xmlns:doc="http://www.mulesoft.org/schema/mule/documentation"
+	xmlns:spring="http://www.springframework.org/schema/beans" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+	xsi:schemaLocation="http://www.springframework.org/schema/beans http://www.springframework.org/schema/beans/spring-beans-current.xsd
+http://www.mulesoft.org/schema/mule/core http://www.mulesoft.org/schema/mule/core/current/mule.xsd
+http://www.mulesoft.org/schema/mule/as400 http://www.mulesoft.org/schema/mule/as400/current/mule-as400.xsd
+http://www.mulesoft.org/schema/mule/http http://www.mulesoft.org/schema/mule/http/current/mule-http.xsd
+http://www.mulesoft.org/schema/mule/ee/dw http://www.mulesoft.org/schema/mule/ee/dw/current/dw.xsd
+http://www.mulesoft.org/schema/mule/ee/tracking http://www.mulesoft.org/schema/mule/ee/tracking/current/mule-tracking-ee.xsd">
+<!-- configuration doc:name="Configuration">
+	<default-receiver-threading-profile maxThreadsActive="10" maxThreadsIdle="10" poolExhaustedAction="WAIT"/>
+</configuration-->
+	<as400:config name="AS400__Configuration_type_strategy"
+		endpoint="${endpoint}" userid="${userid}" password="${password}"
+		doc:name="AS400: Configuration type strategy" libraryList="${libl}">
+		<as400:connection-pooling-profile
+			initialisationPolicy="INITIALISE_ALL" exhaustedAction="WHEN_EXHAUSTED_GROW" maxActive="20" maxIdle="20" evictionCheckIntervalMillis="1000"/>
+	</as400:config>
+	<http:request-config name="HTTP_Request_Configuration"
+		host="api.fixer.io" doc:name="HTTP Request Configuration" port="80" />
+    <flow name="MainFlow">
+        <as400:read-data-queue config-ref="AS400__Configuration_type_strategy" dtaq="${req.dtaq}" library="${library}" dtaqKey="''" dtaqKeySearchType="GREATER_THAN_OR_EQUAL" doc:name="Listen for AS400 Requests"/>
+        <logger message="Transaction: #[message.inboundProperties.'as400.dataqueue.key'] START:  Received the following message:  #[payload]" level="INFO" doc:name="Log Transaction Received"/>
+        <set-variable variableName="correlationID" value="#[message.inboundProperties.'as400.dataqueue.key']" doc:name="Save Trans ID"/>
+        <flow-ref name="publishEvent" doc:name="Publish Event"/>
+        <as400:write-data-queue config-ref="AS400__Configuration_type_strategy" dtaq="${res.dtaq}" library="${library}" dqEntry="Status=OK" dtaqKey="#[flowVars.correlationID]" doc:name="Write AS400 Response (Rates)"/>
+        <logger message="Transaction: #[flowVars.correlationID] COMPLETED: Received data: #[payload], sent response to AS400" level="INFO" doc:name="Log Completion"/>
+        <catch-exception-strategy doc:name="Catch Exception Strategy">
+            <logger message="Transaction: #[flowVars.correlationID] FAILED with exception #[exception]" level="ERROR" doc:name="Log Exception"/>
+            <as400:write-data-queue config-ref="AS400__Configuration_type_strategy" dtaq="${res.dtaq}" library="${library}" dqEntry="Status=FAILED;Errors while executing the flow" dtaqKey="#[flowVars.correlationID]" doc:name="Write AS400 response (ERROR)"/>
+        </catch-exception-strategy>
+    </flow>
+    <flow name="publishEvent">
+        <logger message="Transaction: #[flowVars.correlationID] WIP" level="INFO" doc:name="Publish Event"/>
+    </flow>
+
+	<!--  flow name="wtf400currencydemorestFlow" processingStrategy="synchronous"-->
+</mule>
