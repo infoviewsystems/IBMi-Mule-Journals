@@ -1,0 +1,106 @@
+     H DEBUG DATFMT(*ISO)  bnddir('QC2LE')
+     H*================================================================
+     H*  C R E A T I O N     P A R A M E T E R S                      *
+     H*CRT: CRTBNDRPG                DFTACTGRP(*NO) ACTGRP(*caller) +:*
+     H*CRT:  dbgview(*all) option(*nodebugio)                        :*
+     H*================================================================
+     H*
+     H* Description:    RCVJRNE exit program
+     H*
+     H* Author :        Dima Kuznetsov
+     H* Creation date:   3/27/2017
+     H*
+     ftrnhdri0  if   e           k disk    rename(trnHdr:transRec)
+
+     d main            pr                  extpgm('JRNDEMO4')
+     D  buffer                    65535A          options(*varsize)
+     D  action                                    likeds(ctlDS)
+
+     d crttrn          pr                  extpgm('CRTTRN')
+     d  transType                    10    const options(*nopass)
+     d  altTrnID                     30    const options(*nopass)
+     d  reqData                     254a   const options(*nopass)
+     d  transID                      20i 0       options(*nopass)
+     d  returnCd                      3s 0       options(*nopass)
+     d  returnMsg                   254          options(*nopass)
+
+     d ctlDS           ds                  qualified
+     d   byte1                        1
+     d   byte2                        1
+     d   byte3                        1
+
+     d entryDS         ds
+     d   JOENTL                       5s 0
+     d   JOSEQN                      10s 0
+     d   JOCODE                       1
+     d   JOENTT                       2
+     d   JODATE                       6
+     d   JOTIME                       6s 0
+     d   JOJOB                       10
+     d   JOUSER                      10
+     d   JONBR                        6s 0
+     d   JOPGM                       10
+     d   JOOBJ                       10
+     d   JOLIB                       10
+     d   JOMBR                       10
+     d   JOCTRR                      10s 0
+     d   JOFLAG                       1
+     d   JOCCID                      10s 0
+     d   JOINCDAT                     1
+     d   JOMINESD                     1
+     d   JORES                        6
+     d   JOESD                    32641
+     d
+     d transID         s             20i 0
+     d c#trnType       s             10    inz('JRNDEMO')
+   d d returnCd        s              3s 0
+   d d returnMsg       s            254a
+
+     d recFmtDS      e ds                  extname(JRNDEMO1)
+     d w#operation     s             10
+     d w#seq           s             10s 0
+     d lastSeq         s             10    dtaara(JRNDEMO3)
+
+      * ======== Entry parms
+     d main            pi
+     D  buffer                    65535A          options(*varsize)
+     D  action                                    likeds(ctlDS)
+
+      /free
+        if action.byte1 = '1';
+          entryDS = buffer;
+          clear w#operation;
+          w#seq = joseqn;
+          select;
+          // INSERT
+          when JOCODE = 'R' and (JOENTT = 'PT' or JOENTT = 'PX');
+            w#operation = 'INSERT';
+          // UPDATE
+          when JOCODE = 'R' and JOENTT = 'UP';
+            w#operation = 'UPDATE';
+          // DELETE
+          when JOCODE = 'R' and JOENTT = 'DL';
+            w#operation = 'DELETE';
+          endsl;
+          if w#operation <> *blanks;
+            // Check if the transaction has already been processed
+            setll (%char(w#seq)) transRec;
+            if not %equal;
+              recFmtDS = joesd;
+              callp(e) crttrn(c#trntype:%char(w#seq):%trim(w#operation)
+                     + ',' + %char(id) + ',' + %trim(itemCd) +
+                     ',' + %trim(itemDesc) + ',' + %char(DEFAU00001):
+                     transID:returnCd:returnMsg);
+            endif;
+          endif;
+        else;
+          // save the latest sequence to the data area
+          if action.byte1 = '0' and w#seq <> 0;
+            in *lock lastSeq;
+            lastSeq     = %char(w#seq);
+            out lastSeq;
+          endif;
+        endif;
+        return;
+      /end-free
+

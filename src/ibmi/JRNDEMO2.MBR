@@ -1,0 +1,27 @@
+/*===================================================================*/
+/*CRT: CRTBNDCL dbgview(*all)                                       :*/
+/*===================================================================*/
+
+  PGM
+    dcl &seq *char 10
+
+    /* Start where we've left off last time */
+    rtvdtaara dtaara(muledemos/jrndemo3) rtnvar(&seq)
+              monmsg CPF1015 exec(do)
+      crtdtaara dtaara(muledemos/jrndemo3) +
+                type(*CHAR)                       +
+                len(10)                           +
+                value(*FIRST)
+      chgvar &seq value(*FIRST)
+    enddo
+
+    /* Continuously listen to the journal changes */
+    rcvjrne jrn(MULEDEMOS/QSQJRN) +
+            file((MULEDEMOS/JRNDEMO1)) +
+            exitpgm(MULEDEMOS/JRNDEMO4) +
+            jrncde((*all)) +
+            enttyp(BR DL DR PT PX UB UP UR CR DM) +
+            entfmt(*TYPE1) +
+            delay(*NEXTENT 1) +
+            fromentlrg(&SEQ)
+  ENDPGM

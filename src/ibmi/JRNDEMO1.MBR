@@ -1,0 +1,25 @@
+--*CRT: RUNSQLSTM COMMIT(*NONE) ERRLVL(30)            :*
+-- Make sure the schema is created with SQL create schema command
+-- otherwise the newly created table won't automatically get journaled.
+-- In this case create the table, then use STRJRNPF to manually start the
+-- journal
+set schema muledemos;
+
+drop table JRNDEMO1;
+
+-- Create test table ITEM MASTER
+create table JRNDEMO1 (
+  id          bigint not null generated always as identity primary key,
+  itemCd      char(30) not null with default,
+  itemDesc    char(100) not null with default,
+  defaultPrice decimal(11,2) not null with default);
+
+-- Seed with test data
+ insert into muledemos/jrndemo1 (itemCd, itemDesc, defaultPrice)
+ values ('ITEM1','ITEM1 description',111.45);
+ insert into muledemos/jrndemo1 (itemCd, itemDesc, defaultPrice)
+ values ('ITEM2','ITEM2 description',222.45);
+ update muledemos/jrndemo1 set itemdesc = 'ITEM1 desc'
+ where itemCd = 'ITEM1';
+ delete from muledemos/jrndemo1
+ where itemCd = 'ITEM2';
